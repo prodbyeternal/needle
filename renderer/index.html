@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Needle — Vinyl record player simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app-container">
+    <!-- Custom Frameless Titlebar -->
+    <header id="title-bar">
+      <div class="drag-region">
+        <div class="title-logo">
+          <span>N E E D L E</span>
+          <span class="device-version">v1.0.0</span>
+        </div>
+        <div class="header-status">
+          <span class="status-indicator"></span>
+          <span id="motor-status-text">MOTOR STANDBY</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-library-toggle" class="btn-header" title="Toggle Library (L)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+          </svg>
+          <span>LIBRARY</span>
+        </button>
+        <button id="btn-settings-toggle" class="btn-header" title="Toggle Settings">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <span>SETTINGS</span>
+        </button>
+      </div>
+      <div class="window-controls">
+        <button id="btn-minimize" title="Minimize">
+          <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="5.5" width="8" height="1" fill="currentColor"/></svg>
+        </button>
+        <button id="btn-maximize" title="Maximize">
+          <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <button id="btn-close" title="Close">
+          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Master Brutalist Turntable Chassis -->
+    <main id="turntable-chassis">
+      <!-- Ambient Backglow -->
+      <div id="track-backdrop"></div>
+      <div id="ambient-glow"></div>
+
+      <!-- Left Section: Mechanical Platter & Arm -->
+      <section id="turntable-left">
+        <div class="turntable-bed">
+          <!-- Stroboscope calibration light -->
+          <div id="strobe-light" class="strobe-amber"></div>
+
+          <!-- Platter and Record Wrapper -->
+          <div id="platter-wrapper">
+            <canvas id="platter-canvas" width="560" height="560"></canvas>
+            
+            <!-- Hover Seating Overlay -->
+            <div id="platter-hover-zone"></div>
+          </div>
+
+          <!-- Tonearm Mechanical Container -->
+          <div id="tonearm-container">
+            <!-- Tonearm base pivot ring -->
+            <div class="tonearm-base">
+              <div class="base-screw pin-1"></div>
+              <div class="base-screw pin-2"></div>
+              <div class="base-screw pin-3"></div>
+              <div class="base-pivot-core"></div>
+            </div>
+            
+            <!-- Rotating Mechanical arm body -->
+            <div id="tonearm-arm">
+              <!-- Metallic weight counterbalance -->
+              <div class="counterweight"></div>
+              
+              <!-- Metal rod -->
+              <div class="arm-shaft"></div>
+              
+              <!-- Cartridge headshell and stylus -->
+              <div class="headshell">
+                <div class="cartridge"></div>
+                <div class="stylus-finger-lift"></div>
+                <div class="stylus-needle"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Floating time tooltip during manual scrubbing -->
+          <div id="scrub-tooltip" class="hidden">
+            <div class="tooltip-arrow"></div>
+            <div class="tooltip-content">
+              <span id="tooltip-time">00:00</span>
+              <span class="tooltip-sub">DROP TO SEEK</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Section: Dot Matrix Screen & Tactile Controls -->
+      <section id="turntable-right">
+        <!-- High-tech Transparent Dot-Matrix Display Screen -->
+        <div id="dot-matrix-screen">
+          <div class="screen-grid-overlay"></div>
+          
+          <!-- Metadata Screen Row -->
+          <div class="screen-row track-meta">
+            <div class="screen-col">
+              <div class="screen-label">TRACK TITLE</div>
+              <div id="display-title" class="screen-value scrolling-text">NO RECORD LOADED</div>
+            </div>
+            <div class="screen-col align-right">
+              <div class="screen-label">ARTIST</div>
+              <div id="display-artist" class="screen-value">INSERT FILE</div>
+            </div>
+          </div>
+
+          <!-- Time and Waveform Progress Row -->
+          <div class="screen-row time-numeric">
+            <div class="screen-col">
+              <div class="screen-label">ELAPSED TIME</div>
+              <div id="display-elapsed" class="screen-value font-mono">00:00.00</div>
+            </div>
+            <div class="screen-col align-right">
+              <div class="screen-label">REMAINING</div>
+              <div id="display-remaining" class="screen-value font-mono">-00:00.00</div>
+            </div>
+          </div>
+
+          <!-- Sub-parameters Row -->
+          <div class="screen-row sub-specs">
+            <div class="screen-col small">
+              <div class="screen-label">SPEED</div>
+              <div id="display-rpm" class="screen-value font-mono">33.3 RPM</div>
+            </div>
+            <div class="screen-col small">
+              <div class="screen-label">PITCH</div>
+              <div id="display-pitch" class="screen-value font-mono">+0.00%</div>
+            </div>
+            <div class="screen-col small">
+              <div class="screen-label">BPM</div>
+              <div id="display-bpm" class="screen-value font-mono">---</div>
+            </div>
+            <div class="screen-col small">
+              <div class="screen-label">KEY</div>
+              <div id="display-key" class="screen-value font-mono">---</div>
+            </div>
+            <div class="screen-col small align-right">
+              <div class="screen-label">DIRECTION</div>
+              <div id="display-direction" class="screen-value font-mono">FORWARD</div>
+            </div>
+          </div>
+
+          <!-- Scrolling Waveform Bar Row (Serato Style) -->
+          <div class="screen-row waveform-bar-row">
+            <div class="screen-col">
+              <div class="screen-label">WAVEFORM PROFILE (SCROLLING)</div>
+              <div class="waveform-canvas-container">
+                <canvas id="waveform-bar-canvas" width="460" height="50"></canvas>
+                <div class="waveform-playhead-line"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tactile Control Deck Grid -->
+        <div id="control-deck">
+          <div class="deck-tabs">
+            <button class="deck-tab active" data-deck-tab="play">PLAY CONTROLS</button>
+            <button class="deck-tab" data-deck-tab="fx">EFFECTS</button>
+          </div>
+
+          <!-- Column 1: Power & Engine State -->
+          <div class="control-group motor-control-group">
+            <span class="control-label">MOTOR POWER</span>
+            <div class="toggle-switch-wrapper">
+              <span class="toggle-label off">OFF</span>
+              <button id="motor-toggle" class="mechanical-toggle" aria-label="Toggle Motor Power">
+                <span class="toggle-lever"></span>
+              </button>
+              <span class="toggle-label on">ON</span>
+            </div>
+          </div>
+
+          <!-- Column 2: RPM Selector Matrix -->
+          <div class="control-group">
+            <span class="control-label">RPM SELECT</span>
+            <div class="rpm-selector-grid">
+              <button class="btn-rpm" data-rpm="16">16</button>
+              <button class="btn-rpm active" data-rpm="33">33</button>
+              <button class="btn-rpm" data-rpm="45">45</button>
+              <button class="btn-rpm" data-rpm="78">78</button>
+            </div>
+          </div>
+
+          <!-- Column 3: Vinyl Crackle Dynamic Knob -->
+          <div class="control-group">
+            <span class="control-label">SURFACE NOISE (CRACKLE)</span>
+            <div class="knob-container">
+              <div id="crackle-knob" class="tactile-knob" data-value="15">
+                <div class="knob-marker"></div>
+              </div>
+              <span id="crackle-value" class="knob-readout font-mono">15%</span>
+            </div>
+          </div>
+
+          <!-- Full Width: Master Pitch Slider -->
+          <div class="control-group col-span-2">
+            <div class="slider-label-row">
+              <span class="control-label">FINE PITCH PULL (±50%)</span>
+              <button id="reset-pitch" class="btn-text">RESET (0%)</button>
+            </div>
+            <div class="tactile-slider-wrapper">
+              <span class="slider-range-indicator">-50%</span>
+              <div class="slider-track">
+                <div id="pitch-slider-thumb" class="slider-thumb"></div>
+                <div class="slider-ticks"></div>
+              </div>
+              <span class="slider-range-indicator">+50%</span>
+            </div>
+          </div>
+
+          <!-- Column 4: Main Transport Core -->
+          <div class="control-group col-span-3">
+            <span class="control-label">TRANSPORT CONTROL</span>
+            <div class="transport-grid">
+              <button id="btn-reverse" class="btn-transport" title="Toggle Playback Direction (R)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M11 6l-6 6 6 6V6z M18 6l-6 6 6 6V6z"/>
+                </svg>
+                <span>REV</span>
+              </button>
+              <button id="btn-stop" class="btn-transport" title="Full Stop / Reset (Esc)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12"/>
+                </svg>
+                <span>STOP</span>
+              </button>
+              <button id="btn-play" class="btn-transport main-play" title="Play / Pause Audio (Space/P)">
+                <svg id="play-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                <span id="play-text">PLAY</span>
+              </button>
+              <button id="btn-eject" class="btn-transport btn-eject" title="Eject Record (E)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 5l-7 8h14l-7-8z"/>
+                  <rect x="5" y="15" width="14" height="2" rx="0.5"/>
+                </svg>
+                <span>EJECT</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="fx-panel" id="deck-panel-fx">
+            <div class="fx-grid">
+              <div class="fx-module eq-module">
+                <div class="fx-module-title">EQ</div>
+                <label class="fx-slider-row">LOW <input class="fx-slider" data-fx-eq="low" type="range" min="-12" max="12" step="1" value="0"><span id="fx-low-val">0dB</span></label>
+                <label class="fx-slider-row">MID <input class="fx-slider" data-fx-eq="mid" type="range" min="-12" max="12" step="1" value="0"><span id="fx-mid-val">0dB</span></label>
+                <label class="fx-slider-row">HIGH <input class="fx-slider" data-fx-eq="high" type="range" min="-12" max="12" step="1" value="0"><span id="fx-high-val">0dB</span></label>
+              </div>
+              <div class="fx-module">
+                <div class="fx-module-title">REVERB</div>
+                <label class="fx-slider-row">MIX <input class="fx-slider" data-fx-amount="reverb" type="range" min="0" max="100" step="1" value="0"><span id="fx-reverb-val">0%</span></label>
+              </div>
+              <div class="fx-module">
+                <div class="fx-module-title">CHORUS</div>
+                <label class="fx-slider-row">DEPTH <input class="fx-slider" data-fx-amount="chorus" type="range" min="0" max="100" step="1" value="0"><span id="fx-chorus-val">0%</span></label>
+              </div>
+              <div class="fx-module">
+                <div class="fx-module-title">DELAY</div>
+                <label class="fx-slider-row">MIX <input class="fx-slider" data-fx-amount="delay" type="range" min="0" max="100" step="1" value="0"><span id="fx-delay-val">0%</span></label>
+              </div>
+            </div>
+            <button id="btn-fx-reset" class="btn-text fx-reset">RESET FX</button>
+          </div>
+        </div>
+
+        <!-- Utility Deck (Shortcuts display) -->
+        <div id="utility-deck">
+          <div class="shortcuts-legend">
+            <span class="legend-title">KEYBOARD SHORTS</span>
+            <div class="legend-grid">
+              <div><kbd>Space</kbd> <span>Motor ON/OFF</span></div>
+              <div><kbd>P</kbd> <span>Play/Pause</span></div>
+              <div><kbd>R</kbd> <span>Reverse Dir</span></div>
+              <div><kbd>S</kbd> / <kbd>Esc</kbd> <span>Stop / Reset</span></div>
+              <div><kbd>1</kbd>-<kbd>4</kbd> <span>16/33/45/78 RPM</span></div>
+              <div><kbd>↑</kbd> <kbd>↓</kbd> <span>Pitch ±1%</span></div>
+              <div><kbd>C</kbd> <span>Toggle Static</span></div>
+              <div><kbd>M</kbd> <span>Mute Audio</span></div>
+              <div><kbd>T</kbd> <span>Toggle Theme</span></div>
+              <div><kbd>E</kbd> <span>Eject Record</span></div>
+              <div><kbd>L</kbd> <span>Library Panel</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <div id="drag-status-indicator" class="sr-status font-mono" aria-live="polite"></div>
+  </div>
+
+  <!-- Library Sidebar Panel -->
+  <aside id="library-panel" class="library-panel">
+    <div class="library-header">
+      <div class="library-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+        </svg>
+        <span>TRACK LIBRARY</span>
+      </div>
+      <button id="btn-library-close" class="btn-library-close" title="Close Library">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="library-count font-mono">
+      <span id="library-track-count">0</span> TRACKS
+    </div>
+    <div id="library-list" class="library-list">
+      <div class="library-empty font-mono">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+          <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
+        </svg>
+        <span>NO TRACKS LOADED</span>
+        <span class="library-empty-sub">DRAG & DROP AUDIO FILES TO ADD</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Settings Sidebar Panel -->
+  <aside id="settings-panel" class="settings-panel">
+    <div class="settings-header">
+      <div class="settings-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+        <span>SETTINGS</span>
+      </div>
+      <button id="btn-settings-close" class="btn-settings-close" title="Close Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    
+    <div class="settings-content">
+      <!-- Section 1: Playback Options -->
+      <div class="settings-section">
+        <div class="settings-section-title">PLAYBACK OPTIONS</div>
+
+        <div class="settings-row settings-toggle-row">
+          <div>
+            <div class="settings-label">Dark Mode</div>
+            <div id="theme-text" class="settings-sub-label">Light theme active</div>
+          </div>
+          <button id="theme-toggle" class="settings-toggle" role="switch" aria-checked="false" title="Toggle Design Theme (T)">
+            <span class="settings-toggle-thumb"></span>
+          </button>
+        </div>
+
+        <div class="settings-row settings-color-row">
+          <div>
+            <div class="settings-label">Color Mood</div>
+            <div id="color-theme-text" class="settings-sub-label">Ember accent active</div>
+          </div>
+          <div class="color-preset-grid">
+            <button class="color-preset active" data-color-preset="ember" title="Ember"><span style="background:#FF4E00"></span></button>
+            <button class="color-preset" data-color-preset="aurora" title="Aurora"><span style="background:#00BFA6"></span></button>
+            <button class="color-preset" data-color-preset="violet" title="Violet"><span style="background:#8B5CF6"></span></button>
+            <button class="color-preset" data-color-preset="rose" title="Rose"><span style="background:#F43F5E"></span></button>
+            <label class="color-preset custom" title="Custom color">
+              <input id="custom-accent-color" type="color" value="#FF4E00">
+              <span></span>
+            </label>
+          </div>
+        </div>
+        
+        <div class="settings-row">
+          <div class="settings-label">Tape Stop Speed</div>
+          <div class="settings-input-container">
+            <input type="range" id="settings-tape-stop-duration" min="200" max="3000" step="100" value="800">
+            <span id="label-tape-stop-duration" class="settings-val font-mono">800ms</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label">Needle Drop Volume</div>
+          <div class="settings-input-container">
+            <input type="range" id="settings-needle-drop-volume" min="0" max="100" step="5" value="35">
+            <span id="label-needle-drop-volume" class="settings-val font-mono">35%</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label">Platter Inertia (Deceleration)</div>
+          <div class="settings-input-container">
+            <input type="range" id="settings-platter-inertia" min="1" max="10" step="1" value="4">
+            <span id="label-platter-inertia" class="settings-val font-mono">Normal</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Keyboard Bindings -->
+      <div class="settings-section">
+        <div class="settings-section-title">KEYBOARD SHORTCUTS</div>
+        <div class="settings-bind-tip">Click a key cap to rebind. Press <kbd>Esc</kbd> to cancel.</div>
+        
+        <div class="settings-row bind-row">
+          <span class="settings-label">Motor Power Toggle</span>
+          <div class="settings-key-cap font-mono" id="bind-motor" data-action="motor">Space</div>
+        </div>
+
+        <div class="settings-row bind-row">
+          <span class="settings-label">Play / Pause Trigger</span>
+          <div class="settings-key-cap font-mono" id="bind-play" data-action="play">P</div>
+        </div>
+
+        <div class="settings-row bind-row">
+          <span class="settings-label">Stop / Reset Platter</span>
+          <div class="settings-key-cap font-mono" id="bind-stop" data-action="stop">S</div>
+        </div>
+
+        <div class="settings-row bind-row">
+          <span class="settings-label">Reverse Playback Dir</span>
+          <div class="settings-key-cap font-mono" id="bind-reverse" data-action="reverse">R</div>
+        </div>
+
+        <div class="settings-row bind-row">
+          <span class="settings-label">Eject Vinyl Disc</span>
+          <div class="settings-key-cap font-mono" id="bind-eject" data-action="eject">E</div>
+        </div>
+
+        <div class="settings-row bind-row">
+          <span class="settings-label">Track Library Toggle</span>
+          <div class="settings-key-cap font-mono" id="bind-library" data-action="library">L</div>
+        </div>
+
+        <div class="settings-row bind-row">
+          <span class="settings-label">Settings Panel Toggle</span>
+          <div class="settings-key-cap font-mono" id="bind-settings" data-action="settings">,</div>
+        </div>
+        
+        <button id="btn-reset-binds" class="btn-settings-action font-mono">RESET BINDINGS TO DEFAULT</button>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">DEVELOPMENT</div>
+        <div class="settings-row settings-toggle-row">
+          <div>
+            <div class="settings-label">Onboarding Screen</div>
+            <div class="settings-sub-label">Replay the first-run intro.</div>
+          </div>
+          <button id="btn-test-onboarding" class="btn-settings-action compact font-mono">TEST ONBOARDING</button>
+        </div>
+      </div>
+
+      <!-- Section 3: About -->
+      <div class="settings-section about-section">
+        <div class="settings-section-title">ABOUT</div>
+        <div class="about-card">
+          <div class="about-logo font-mono">N E E D L E</div>
+          <div class="about-version">v1.0.0</div>
+          <div class="about-desc">
+            A high-fidelity tactile turntable simulator featuring physical tonearm kinematics, stroboscopic calibration, and analog-coupled pitch processing.
+          </div>
+          <div class="about-credits">
+            Designed for professional-grade audio simulation.
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Library Delete Confirmation -->
+  <div id="delete-confirm-modal" class="confirm-modal hidden" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+    <div class="confirm-dialog">
+      <div class="confirm-kicker font-mono">LIBRARY ACTION</div>
+      <h2 id="delete-confirm-title">Delete track?</h2>
+      <p id="delete-confirm-message">Remove this track from your library?</p>
+      <div class="confirm-actions">
+        <button id="btn-cancel-delete" class="btn-confirm secondary font-mono">CANCEL</button>
+        <button id="btn-confirm-delete" class="btn-confirm danger font-mono">DELETE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- First-run Onboarding -->
+  <div id="onboarding-screen" class="onboarding-screen hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div class="onboarding-panel">
+      <button id="btn-onboarding-close" class="btn-onboarding-close" title="Close Onboarding">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+      <div class="onboarding-stage" aria-hidden="true">
+        <div class="onboarding-logo-lockup">
+          <div class="onboarding-deck">
+            <div class="onboarding-record">
+              <div class="record-grooves"></div>
+            </div>
+            <svg class="onboarding-tonearm" viewBox="0 0 112 112" aria-hidden="true">
+              <circle class="tonearm-pivot-mini" cx="93" cy="31" r="8"/>
+              <line class="tonearm-bar-mini" x1="88" y1="36" x2="67" y2="57"/>
+              <rect class="tonearm-head-mini" x="60" y="57" width="11" height="8" rx="2" transform="rotate(45 65.5 61)"/>
+              <line class="tonearm-stylus-mini" x1="61" y1="64" x2="58" y2="69"/>
+            </svg>
+          </div>
+          <div class="onboarding-wordmark font-mono"><span>N E E D L E</span></div>
+        </div>
+      </div>
+      <div class="onboarding-copy-block">
+        <div class="onboarding-mark font-mono">FIRST RUN SETUP</div>
+        <div class="onboarding-page active" data-onboarding-page="0">
+          <h1 id="onboarding-title">Welcome to NEEDLE</h1>
+          <p class="onboarding-copy">A tactile turntable for local music, pitch play, library listening, and fast audio experiments.</p>
+        </div>
+        <div class="onboarding-page" data-onboarding-page="1">
+          <h1>What are you using NEEDLE for?</h1>
+          <p class="onboarding-copy">Choose the setup that feels closest. You can change your mind later.</p>
+          <div class="onboarding-choice-grid">
+            <button class="onboarding-choice selected" data-purpose="Listening">Listening</button>
+            <button class="onboarding-choice" data-purpose="DJ practice">DJ practice</button>
+            <button class="onboarding-choice" data-purpose="Sampling">Sampling</button>
+            <button class="onboarding-choice" data-purpose="Audio testing">Audio testing</button>
+          </div>
+        </div>
+        <div class="onboarding-page" data-onboarding-page="2">
+          <h1>Import music</h1>
+          <p class="onboarding-copy">Add songs from your Music folder or choose one or more folders yourself.</p>
+          <div class="onboarding-import-actions">
+            <button id="btn-import-music-folder" class="btn-onboarding-secondary font-mono">IMPORT MUSIC FOLDER</button>
+            <button id="btn-import-custom-folders" class="btn-onboarding-secondary font-mono">CHOOSE FOLDERS</button>
+          </div>
+          <div id="onboarding-import-status" class="onboarding-import-status">No folders imported yet.</div>
+        </div>
+        <div class="onboarding-page" data-onboarding-page="3">
+          <h1>Choose a look</h1>
+          <p class="onboarding-copy">Pick a light/dark base and a color mood. You can go deeper in Settings later.</p>
+          <div class="onboarding-theme-grid">
+            <button class="onboarding-theme-choice selected" data-theme-choice="light">Light</button>
+            <button class="onboarding-theme-choice" data-theme-choice="dark">Dark</button>
+          </div>
+          <div class="onboarding-color-grid">
+            <button class="onboarding-color-choice selected" data-color-preset="ember"><span style="background:#FF4E00"></span>Ember</button>
+            <button class="onboarding-color-choice" data-color-preset="aurora"><span style="background:#00BFA6"></span>Aurora</button>
+            <button class="onboarding-color-choice" data-color-preset="violet"><span style="background:#8B5CF6"></span>Violet</button>
+            <button class="onboarding-color-choice" data-color-preset="rose"><span style="background:#F43F5E"></span>Rose</button>
+            <button class="onboarding-color-choice" data-color-preset="custom"><span id="onboarding-custom-color-dot"></span>Custom</button>
+          </div>
+        </div>
+        <div class="onboarding-page" data-onboarding-page="4">
+          <h1>Done. Have fun.</h1>
+          <p class="onboarding-copy">Your deck is ready. Drop a file, load a library track, or start shaping pitch and RPM.</p>
+        </div>
+      </div>
+      <div class="onboarding-progress font-mono">
+        <span class="onboarding-dot active"></span>
+        <span class="onboarding-dot"></span>
+        <span class="onboarding-dot"></span>
+        <span class="onboarding-dot"></span>
+        <span class="onboarding-dot"></span>
+      </div>
+      <div class="onboarding-nav">
+        <button id="btn-onboarding-back" class="btn-onboarding-secondary font-mono">BACK</button>
+        <button id="btn-onboarding-start" class="btn-onboarding-start font-mono">PROCEED</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Loader Native Overlay -->
+  <div id="drop-overlay" class="hidden">
+    <div class="overlay-box">
+      <div class="overlay-spinner"></div>
+      <div class="overlay-text font-mono">DROP FILE TO LOAD VINYL RECORD</div>
+    </div>
+  </div>
+
+  <!-- Javascript Modules Hook -->
+  <script src="app.js" type="module"></script>
+</body>
+</html>

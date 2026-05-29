@@ -1,0 +1,23 @@
+{
+  "name": "needle",
+  "version": "1.0.0",
+  "description": "Futuristic tactile digital-physical vinyl record player simulator.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "keywords": [
+    "vinyl",
+    "record-player",
+    "electron",
+    "web-audio-api",
+    "tactile",
+    "music-player"
+  ],
+  "author": "Antigravity & User",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.0.2"
+  }
+}
