@@ -1,0 +1,109 @@
+name: Build Installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux AppImage and deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Linux installers
+        run: npm run dist:linux -- --x64 --publish never
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEEDLE-linux-x64
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
+
+  mac:
+    name: macOS dmg and zip
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate macOS icon
+        run: |
+          mkdir -p build/icon.iconset
+          sips -z 16 16 assets/icons/needle.png --out build/icon.iconset/icon_16x16.png
+          sips -z 32 32 assets/icons/needle.png --out build/icon.iconset/icon_16x16@2x.png
+          sips -z 32 32 assets/icons/needle.png --out build/icon.iconset/icon_32x32.png
+          sips -z 64 64 assets/icons/needle.png --out build/icon.iconset/icon_32x32@2x.png
+          sips -z 128 128 assets/icons/needle.png --out build/icon.iconset/icon_128x128.png
+          sips -z 256 256 assets/icons/needle.png --out build/icon.iconset/icon_128x128@2x.png
+          sips -z 256 256 assets/icons/needle.png --out build/icon.iconset/icon_256x256.png
+          sips -z 512 512 assets/icons/needle.png --out build/icon.iconset/icon_256x256@2x.png
+          sips -z 512 512 assets/icons/needle.png --out build/icon.iconset/icon_512x512.png
+          sips -z 1024 1024 assets/icons/needle.png --out build/icon.iconset/icon_512x512@2x.png
+          iconutil -c icns build/icon.iconset -o assets/icons/needle.icns
+
+      - name: Build macOS installers
+        run: npm run dist:mac -- --x64 --arm64 --publish never
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEEDLE-macos-x64-arm64
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows installers
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows x86, x64, ARM64
+        run: npm run dist:win -- --ia32 --x64 --arm64 --publish never
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEEDLE-windows-ia32-x64-arm64
+          path: |
+            dist/*.exe
+          if-no-files-found: error

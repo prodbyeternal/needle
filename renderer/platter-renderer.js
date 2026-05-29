@@ -349,35 +349,7 @@ export class PlatterRenderer {
       ctx.stroke();
     }
 
-    // ----------------------------------------------------
-    // LAYER 7: Anisotropic Specular Light Sheen (Specular Reflections)
-    // Real vinyl records diffuse light radially in dual fan wedges.
-    // ----------------------------------------------------
-    ctx.save();
-    ctx.translate(cx, cy);
-    
-    // Draw two transparent angular radial gradients for anisotropic specular shine
-    const sheenGrad = ctx.createRadialGradient(0, 0, 85, 0, 0, 222);
-    sheenGrad.addColorStop(0, 'rgba(255,255,255,0.0)');
-    sheenGrad.addColorStop(0.5, 'rgba(255,255,255,0.06)');
-    sheenGrad.addColorStop(1, 'rgba(255,255,255,0.0)');
-
-    ctx.fillStyle = sheenGrad;
-    
-    // Fan 1 (Top Right)
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0, 0, 222, -Math.PI * 0.22, Math.PI * 0.18);
-    ctx.closePath();
-    ctx.fill();
-
-    // Fan 2 (Bottom Left)
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0, 0, 222, Math.PI * 0.78, Math.PI * 1.18);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    this.drawVinylReflections(ctx, cx, cy);
 
     // 3. Central Album Art & Label Chassis
     ctx.save();
@@ -436,6 +408,98 @@ export class PlatterRenderer {
     ctx.fill();
     
     ctx.restore(); // Restore master
+  }
+
+  drawVinylReflections(ctx, cx, cy) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 221, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.translate(cx, cy);
+
+    ctx.globalCompositeOperation = 'screen';
+
+    if (typeof ctx.createConicGradient === 'function') {
+      const conic = ctx.createConicGradient(-Math.PI * 0.26, 0, 0);
+      conic.addColorStop(0.00, 'rgba(255,255,255,0)');
+      conic.addColorStop(0.07, 'rgba(255,255,255,0.018)');
+      conic.addColorStop(0.125, 'rgba(255,255,255,0.105)');
+      conic.addColorStop(0.19, 'rgba(255,255,255,0.016)');
+      conic.addColorStop(0.31, 'rgba(255,255,255,0)');
+      conic.addColorStop(0.50, 'rgba(255,255,255,0)');
+      conic.addColorStop(0.57, 'rgba(255,255,255,0.016)');
+      conic.addColorStop(0.625, 'rgba(255,255,255,0.085)');
+      conic.addColorStop(0.69, 'rgba(255,255,255,0.014)');
+      conic.addColorStop(0.81, 'rgba(255,255,255,0)');
+      conic.addColorStop(1.00, 'rgba(255,255,255,0)');
+      ctx.fillStyle = conic;
+      ctx.beginPath();
+      ctx.arc(0, 0, 221, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      this.fillReflectionCone(ctx, -Math.PI * 0.25, 0.9, 0.085);
+      this.fillReflectionCone(ctx, Math.PI * 0.75, 0.9, 0.07);
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+    this.drawStaticGrooveGlints(ctx);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, 220, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 222, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  fillReflectionCone(ctx, rotation, arcLength, alpha) {
+    ctx.save();
+    ctx.rotate(rotation);
+
+    const grad = ctx.createLinearGradient(0, -54, 0, 54);
+    grad.addColorStop(0, 'rgba(255,255,255,0)');
+    grad.addColorStop(0.42, `rgba(255,255,255,${Math.max(0, alpha * 0.18)})`);
+    grad.addColorStop(0.5, `rgba(255,255,255,${Math.max(0, alpha)})`);
+    grad.addColorStop(0.58, `rgba(255,255,255,${Math.max(0, alpha * 0.18)})`);
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+
+    const start = -arcLength / 2;
+    const end = arcLength / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 221, start, end);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawStaticGrooveGlints(ctx) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.026)';
+    ctx.lineWidth = 0.75;
+
+    const glints = [
+      { radius: 116, start: -0.64, length: 0.28 },
+      { radius: 142, start: -0.54, length: 0.34 },
+      { radius: 168, start: -0.43, length: 0.42 },
+      { radius: 128, start: 2.48, length: 0.24 },
+      { radius: 156, start: 2.58, length: 0.36 },
+      { radius: 186, start: 2.7, length: 0.42 }
+    ];
+
+    glints.forEach(({ radius, start, length }) => {
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, start, start + length);
+      ctx.stroke();
+    });
   }
 
   /**

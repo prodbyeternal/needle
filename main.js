@@ -4,6 +4,7 @@ const os = require('os');
 const path = require('path');
 
 let mainWindow;
+const appIconPath = path.join(__dirname, 'assets', 'icons', process.platform === 'win32' ? 'needle.ico' : 'needle.png');
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -13,6 +14,7 @@ function createWindow() {
     minHeight: 700,
     frame: false, // Frameless window for our custom industrial design UI
     transparent: true, // Enables transparent panels and rounded edges
+    icon: appIconPath,
     hasShadow: true,
     show: false, // Don't show until ready to prevent flashing
     webPreferences: {
@@ -132,6 +134,11 @@ async function collectAudioFiles(folderPath, files) {
 }
 
 // App Initializations
+app.setName('NEEDLE');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.prodbyeternal.needle');
+}
+
 app.whenReady().then(() => {
   // Enable custom hardware acceleration options
   app.commandLine.appendSwitch('enable-gpu-rasterization');
