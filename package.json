@@ -9,8 +9,8 @@
     "dev": "electron .",
     "dist": "electron-builder",
     "dist:linux": "electron-builder --linux AppImage deb",
-    "dist:mac": "electron-builder --mac dmg zip",
-    "dist:win": "electron-builder --win nsis portable"
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis"
   },
   "keywords": [
     "vinyl",
@@ -20,7 +20,7 @@
     "tactile",
     "music-player"
   ],
-  "author": "Antigravity & User",
+  "author": "eternal",
   "license": "MIT",
   "build": {
     "appId": "com.prodbyeternal.needle",
@@ -46,18 +46,11 @@
             "ia32",
             "arm64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64",
-            "ia32",
-            "arm64"
-          ]
         }
       ]
     },
     "nsis": {
+      "artifactName": "${productName}-Setup-${version}-windows-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
@@ -65,6 +58,7 @@
       "shortcutName": "NEEDLE"
     },
     "mac": {
+      "artifactName": "${productName}-${version}-macos-${arch}.${ext}",
       "category": "public.app-category.music",
       "icon": "assets/icons/needle.icns",
       "target": [
@@ -74,17 +68,11 @@
             "x64",
             "arm64"
           ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
         }
       ]
     },
     "linux": {
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
       "category": "AudioVideo",
       "icon": "assets/icons/needle.png",
       "target": [
