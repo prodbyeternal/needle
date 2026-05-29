@@ -32,6 +32,7 @@ export class AudioEngine {
     this.isPlaying = false;
     this.isMuted = false;
     this.isTapeStopping = false;
+    this.isScratching = false;
     
     this.duration = 0;
     this.currentTime = 0;       // Current playhead position in seconds (0 to duration)
@@ -54,6 +55,12 @@ export class AudioEngine {
       chorus: 0,
       delay: 0
     };
+
+    // Loop & A-B Repeat state variables
+    this.isLoopActive = false;
+    this.isABRepeatActive = false;
+    this.repeatA = null; // Percentage (0.0 - 1.0)
+    this.repeatB = null; // Percentage (0.0 - 1.0)
 
     // Analytics
     this.analyserData = null;
@@ -139,6 +146,14 @@ export class AudioEngine {
     
     // Start loop-buffered crackle synthesis
     this.setupProceduralCrackle();
+
+    // Apply loaded/restored FX values to nodes
+    this.setEQBand('low', this.fx.low);
+    this.setEQBand('mid', this.fx.mid);
+    this.setEQBand('high', this.fx.high);
+    this.setEffectAmount('reverb', this.fx.reverb);
+    this.setEffectAmount('chorus', this.fx.chorus);
+    this.setEffectAmount('delay', this.fx.delay);
   }
 
   /**
@@ -215,7 +230,7 @@ export class AudioEngine {
    */
   setupProceduralCrackle() {
     this.crackleGain = this.ctx.createGain();
-    this.crackleGain.gain.value = this.crackleLevel * 0.15; // Soft initial scale
+    this.crackleGain.gain.value = 0; // Start muted
     this.crackleGain.connect(this.gainNode);
     
     // Synthesize a looped 3-second custom crackle buffer containing white noise + low rumble + dust clicks
@@ -252,6 +267,9 @@ export class AudioEngine {
     this.crackleSource.loop = true;
     this.crackleSource.connect(this.crackleGain);
     this.crackleSource.start(0);
+
+    // Sync volume to current state
+    this.updateCrackleVolume();
   }
 
   /**
@@ -259,9 +277,23 @@ export class AudioEngine {
    */
   setCrackleLevel(percent) {
     this.crackleLevel = percent / 100;
-    if (this.crackleGain) {
-      // Smooth volume transitions
-      this.crackleGain.gain.setTargetAtTime(this.crackleLevel * 0.25, this.ctx.currentTime, 0.05);
+    this.updateCrackleVolume();
+  }
+
+  /**
+   * Updates the crackle volume based on playback and scratching states
+   */
+  updateCrackleVolume() {
+    if (!this.crackleGain) return;
+    
+    // Crackle should only play if the turntable is active (playing or scratching) and not muted
+    const shouldPlay = (this.isPlaying || this.isScratching) && !this.isMuted;
+    const targetVolume = shouldPlay ? (this.crackleLevel * 0.25) : 0;
+    
+    if (this.ctx) {
+      this.crackleGain.gain.setTargetAtTime(targetVolume, this.ctx.currentTime, 0.05);
+    } else {
+      this.crackleGain.gain.value = targetVolume;
     }
   }
 
@@ -362,6 +394,7 @@ export class AudioEngine {
       if (this.isPlaying) {
         this.isPlaying = false;
         this.currentTime = this.playbackDirection === 1 ? this.duration : 0;
+        this.updateCrackleVolume();
         // Broadcast natural EOF to app
         if (this.onEndedCallback) this.onEndedCallback();
       }
@@ -370,6 +403,9 @@ export class AudioEngine {
     // Start buffer playback at calculated offset
     this.source.start(0, offset);
     this.startOffset = this.currentTime;
+
+    // Enable crackle during playback
+    this.updateCrackleVolume();
   }
 
   /**
@@ -388,6 +424,9 @@ export class AudioEngine {
       } catch (e) {}
       this.source = null;
     }
+
+    // Mute crackle when paused
+    this.updateCrackleVolume();
   }
 
   /**
@@ -416,6 +455,7 @@ export class AudioEngine {
       this.updatePlayhead();
       this.isPlaying = false;
       this.isTapeStopping = false;
+      this.updateCrackleVolume();
       
       if (this.source) {
         this.source.onended = null;
@@ -521,6 +561,10 @@ export class AudioEngine {
     this.init();
 
     this.isPlaying = false; // We are in manual scratching mode
+    if (!this.isScratching) {
+      this.isScratching = true;
+      this.updateCrackleVolume();
+    }
     const targetDirection = speedFactor >= 0 ? 1 : -1;
     
     // Scale scratching volumes: make slow scratches quieter, simulating mechanical cartridge drag!
@@ -578,6 +622,54 @@ export class AudioEngine {
       this.gainNode.gain.setValueAtTime(this.isMuted ? 0 : 1.0, this.ctx.currentTime);
     }
     this.scratchPlaybackDirection = this.playbackDirection;
+    this.isScratching = false;
+    this.updateCrackleVolume();
+  }
+
+  restartSourceAt(seconds) {
+    if (!this.isPlaying || !this.originalBuffer) return;
+    
+    // Stop current source cleanly
+    if (this.source) {
+      this.source.onended = null;
+      try {
+        this.source.stop();
+      } catch (e) {}
+      this.source = null;
+    }
+    
+    this.timePlayStarted = this.ctx.currentTime;
+    
+    const activeBuffer = this.playbackDirection === 1 ? this.originalBuffer : this.reversedBuffer;
+    let offset = this.playbackDirection === 1 ? seconds : (this.duration - seconds);
+    
+    if (offset < 0) offset = 0;
+    if (offset >= this.duration) offset = this.duration - 0.01;
+    
+    this.source = this.ctx.createBufferSource();
+    this.source.buffer = activeBuffer;
+    this.source.playbackRate.setValueAtTime(this.speedMultiplier, this.ctx.currentTime);
+    this.source.connect(this.inputGain);
+    
+    this.source.onended = () => {
+      if (this.isPlaying) {
+        if (this.isABRepeatActive && this.repeatA !== null && this.repeatB !== null) {
+          this.currentTime = this.playbackDirection === 1 ? this.repeatA * this.duration : this.repeatB * this.duration;
+          this.restartSourceAt(this.currentTime);
+        } else if (this.isLoopActive) {
+          this.currentTime = this.playbackDirection === 1 ? 0 : this.duration;
+          this.restartSourceAt(this.currentTime);
+        } else {
+          this.isPlaying = false;
+          this.currentTime = this.playbackDirection === 1 ? this.duration : 0;
+          this.updateCrackleVolume();
+          if (this.onEndedCallback) this.onEndedCallback();
+        }
+      }
+    };
+    
+    this.source.start(0, offset);
+    this.startOffset = seconds;
   }
 
   /**
@@ -592,10 +684,48 @@ export class AudioEngine {
     // Add or subtract depending on direct direction
     if (this.playbackDirection === 1) {
       this.currentTime = this.startOffset + elapsedVirtualTime;
-      if (this.currentTime > this.duration) this.currentTime = this.duration;
     } else {
       this.currentTime = this.startOffset - elapsedVirtualTime;
-      if (this.currentTime < 0) this.currentTime = 0;
+    }
+
+    // Check repeat loops
+    if (this.isABRepeatActive && this.repeatA !== null && this.repeatB !== null) {
+      const limitA = this.repeatA * this.duration;
+      const limitB = this.repeatB * this.duration;
+      if (this.playbackDirection === 1) {
+        if (this.currentTime >= limitB) {
+          this.currentTime = limitA;
+          this.restartSourceAt(limitA);
+        }
+      } else {
+        if (this.currentTime <= limitA) {
+          this.currentTime = limitB;
+          this.restartSourceAt(limitB);
+        }
+      }
+    } else if (this.isLoopActive) {
+      if (this.playbackDirection === 1) {
+        if (this.currentTime >= this.duration) {
+          this.currentTime = 0;
+          this.restartSourceAt(0);
+        }
+      } else {
+        if (this.currentTime <= 0) {
+          this.currentTime = this.duration;
+          this.restartSourceAt(this.duration);
+        }
+      }
+    } else {
+      // Normal clamp
+      if (this.playbackDirection === 1) {
+        if (this.currentTime >= this.duration) {
+          this.currentTime = this.duration;
+        }
+      } else {
+        if (this.currentTime <= 0) {
+          this.currentTime = 0;
+        }
+      }
     }
     
     return this.currentTime;
@@ -606,6 +736,7 @@ export class AudioEngine {
     if (this.gainNode) {
       this.gainNode.gain.setValueAtTime(mute ? 0 : 1.0, this.ctx.currentTime);
     }
+    this.updateCrackleVolume();
   }
 
   /**

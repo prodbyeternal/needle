@@ -208,6 +208,15 @@ function initApp() {
 
   // Key Bindings Listeners
   window.addEventListener('keydown', handleKeyboardShortcuts);
+
+  // Hook title scrolling on window resize
+  window.addEventListener('resize', setupTitleScroll);
+
+  // Hook Konami code + rhythm game
+  setupRhythmGame();
+
+  // Hook Loop & A-B Repeat controls
+  setupRepeatControls();
 }
 
 // ----------------------------------------------------
@@ -511,6 +520,7 @@ function setupEffectsControls() {
       audio.init();
       audio.setEQBand(band, value);
       document.getElementById(`fx-${band}-val`).textContent = `${value > 0 ? '+' : ''}${value}dB`;
+      saveSettingsToStorage();
     });
   });
 
@@ -521,6 +531,7 @@ function setupEffectsControls() {
       audio.init();
       audio.setEffectAmount(effect, value);
       document.getElementById(`fx-${effect}-val`).textContent = `${value}%`;
+      saveSettingsToStorage();
     });
   });
 
@@ -537,7 +548,85 @@ function setupEffectsControls() {
       const effect = slider.getAttribute('data-fx-amount');
       document.getElementById(`fx-${effect}-val`).textContent = '0%';
     });
+    saveSettingsToStorage();
   });
+}
+
+function setupRepeatControls() {
+  const loopBtn = document.getElementById('btn-loop-toggle');
+  const abBtn = document.getElementById('btn-ab-repeat');
+  const abStatus = document.getElementById('ab-status-text');
+
+  if (loopBtn) {
+    loopBtn.addEventListener('click', () => {
+      audio.isLoopActive = !audio.isLoopActive;
+      loopBtn.classList.toggle('active', audio.isLoopActive);
+      saveSettingsToStorage();
+    });
+  }
+
+  if (abBtn) {
+    abBtn.addEventListener('click', () => {
+      if (!audio.originalBuffer) return; // Only works if a track is loaded
+
+      // A-B Repeat state machine:
+      // State 0 (OFF): repeatA === null && repeatB === null
+      // State 1 (A SET): repeatA !== null && repeatB === null
+      // State 2 (LOOPING): repeatA !== null && repeatB !== null
+      
+      if (audio.repeatA === null) {
+        // Transition 0 -> 1: Set Point A
+        audio.updatePlayhead();
+        audio.repeatA = audio.currentTime / audio.duration;
+        abBtn.classList.add('state-a');
+        abBtn.classList.remove('state-ab');
+        abStatus.textContent = 'A SET';
+        platter.setRepeatPoints(audio.repeatA, null);
+      } else if (audio.repeatB === null) {
+        // Transition 1 -> 2: Set Point B & start looping
+        audio.updatePlayhead();
+        let pctB = audio.currentTime / audio.duration;
+        let pctA = audio.repeatA;
+        
+        // Swap if B is before A
+        if (pctB < pctA) {
+          const temp = pctA;
+          pctA = pctB;
+          pctB = temp;
+        }
+        
+        // Ensure some minimum distance (e.g. 0.5% of duration)
+        if (pctB - pctA < 0.005) {
+          pctB = Math.min(1.0, pctA + 0.01);
+          pctA = Math.max(0.0, pctB - 0.01);
+        }
+        
+        audio.repeatA = pctA;
+        audio.repeatB = pctB;
+        audio.isABRepeatActive = true;
+        
+        abBtn.classList.remove('state-a');
+        abBtn.classList.add('state-ab');
+        abStatus.textContent = 'LOOPING';
+        
+        platter.setRepeatPoints(audio.repeatA, audio.repeatB);
+        
+        // Seek to Point A and play
+        audio.seek(audio.repeatA * audio.duration);
+      } else {
+        // Transition 2 -> 0: Clear repeat points
+        audio.repeatA = null;
+        audio.repeatB = null;
+        audio.isABRepeatActive = false;
+        
+        abBtn.classList.remove('state-a');
+        abBtn.classList.remove('state-ab');
+        abStatus.textContent = 'OFF';
+        
+        platter.setRepeatPoints(null, null);
+      }
+    });
+  }
 }
 
 // ----------------------------------------------------
@@ -868,14 +957,36 @@ function isSupportedAudioFile(file) {
 }
 
 function setupTitleScroll() {
-  const container = document.getElementById('dot-matrix-screen');
   const titleEl = document.getElementById('display-title');
+  if (!titleEl) return;
   
   if (displayScrollInterval) clearInterval(displayScrollInterval);
+  
+  // Clear any existing active state & restore raw text
   titleEl.classList.remove('active-scroll');
-
-  // Check overflow
-  if (titleEl.scrollWidth > titleEl.clientWidth) {
+  titleEl.style.removeProperty('--scroll-dist');
+  titleEl.style.removeProperty('--scroll-duration');
+  
+  const innerSpan = titleEl.querySelector('.scrolling-text-inner');
+  if (innerSpan) {
+    titleEl.textContent = innerSpan.textContent;
+  }
+  
+  // Measure overflow (scrollWidth vs clientWidth)
+  const scrollWidth = titleEl.scrollWidth;
+  const clientWidth = titleEl.clientWidth;
+  
+  if (scrollWidth > clientWidth) {
+    const text = titleEl.textContent;
+    titleEl.innerHTML = `<span class="scrolling-text-inner">${text}</span>`;
+    
+    const scrollDist = scrollWidth - clientWidth;
+    titleEl.style.setProperty('--scroll-dist', `${scrollDist}px`);
+    
+    // Constant speed scrolling: 25px per second, plus 3s for pauses (1.5s start, 1.5s end)
+    const duration = Math.max(6, (scrollDist / 25) + 3);
+    titleEl.style.setProperty('--scroll-duration', `${duration}s`);
+    
     titleEl.classList.add('active-scroll');
   }
 }
@@ -1401,6 +1512,19 @@ function loadTrackOntoPlatter(trackId, metadata, info, visualState = null, optio
   const { animate = true, save = true } = options;
   activeTrackId = trackId;
 
+  // Reset A-B repeat state when loading a new track
+  audio.repeatA = null;
+  audio.repeatB = null;
+  audio.isABRepeatActive = false;
+  platter.setRepeatPoints(null, null);
+
+  const abBtn = document.getElementById('btn-ab-repeat');
+  if (abBtn) {
+    abBtn.className = 'btn-transport btn-sub-transport';
+    const abStatus = document.getElementById('ab-status-text');
+    if (abStatus) abStatus.textContent = 'OFF';
+  }
+
   // Vinyl load-in animation
   const wrapper = document.getElementById('platter-wrapper');
   if (animate) {
@@ -1695,10 +1819,25 @@ function unloadActiveTrackAfterDelete() {
   platter.unloadTrack();
   updateTrackBackdrop(null);
   activeTrackId = null;
+
+  // Reset A-B repeat state
+  audio.repeatA = null;
+  audio.repeatB = null;
+  audio.isABRepeatActive = false;
+  platter.setRepeatPoints(null, null);
+
+  const abBtn = document.getElementById('btn-ab-repeat');
+  if (abBtn) {
+    abBtn.className = 'btn-transport btn-sub-transport';
+    const abStatus = document.getElementById('ab-status-text');
+    if (abStatus) abStatus.textContent = 'OFF';
+  }
+
   tonearm.setLifted(true);
   tonearm.targetAngle = tonearm.angleRest;
 
   document.getElementById('display-title').textContent = 'NO RECORD LOADED';
+  setupTitleScroll();
   document.getElementById('display-artist').textContent = 'INSERT FILE';
   document.getElementById('display-bpm').textContent = '---';
   document.getElementById('display-key').textContent = '---';
@@ -1773,8 +1912,22 @@ function ejectRecord() {
     updateTrackBackdrop(null);
     activeTrackId = null;
 
+    // Reset A-B repeat state
+    audio.repeatA = null;
+    audio.repeatB = null;
+    audio.isABRepeatActive = false;
+    platter.setRepeatPoints(null, null);
+
+    const abBtn = document.getElementById('btn-ab-repeat');
+    if (abBtn) {
+      abBtn.className = 'btn-transport btn-sub-transport';
+      const abStatus = document.getElementById('ab-status-text');
+      if (abStatus) abStatus.textContent = 'OFF';
+    }
+
     // Reset display screen
     document.getElementById('display-title').textContent = 'NO RECORD LOADED';
+    setupTitleScroll();
     document.getElementById('display-artist').textContent = 'INSERT FILE';
     document.getElementById('display-bpm').textContent = '---';
     document.getElementById('display-key').textContent = '---';
@@ -1981,7 +2134,9 @@ function saveSettingsToStorage() {
     needleDropVolume,
     basePlatterInertia,
     onboardingPurpose,
-    keyBindings
+    keyBindings,
+    fx: audio.fx,
+    loopActive: audio.isLoopActive
   };
   localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data));
 }
@@ -2006,6 +2161,8 @@ function loadSettings() {
       }
       if (data.onboardingPurpose) onboardingPurpose = data.onboardingPurpose;
       if (data.keyBindings) keyBindings = { ...keyBindings, ...data.keyBindings };
+      if (data.fx) audio.fx = { ...audio.fx, ...data.fx };
+      if (data.loopActive !== undefined) audio.isLoopActive = data.loopActive;
     } catch (e) {
       console.warn('Error reading saved settings:', e);
     }
@@ -2051,6 +2208,27 @@ function loadSettings() {
   document.getElementById('label-platter-inertia').textContent = inertiaTexts[sliderVal];
 
   updateBindingCaps();
+
+  // Sync loaded FX/EQ slider elements and text labels
+  document.querySelectorAll('[data-fx-eq]').forEach(slider => {
+    const band = slider.getAttribute('data-fx-eq');
+    const value = audio.fx[band] !== undefined ? audio.fx[band] : 0;
+    slider.value = value;
+    document.getElementById(`fx-${band}-val`).textContent = `${value > 0 ? '+' : ''}${value}dB`;
+  });
+
+  document.querySelectorAll('[data-fx-amount]').forEach(slider => {
+    const effect = slider.getAttribute('data-fx-amount');
+    const value = audio.fx[effect] !== undefined ? audio.fx[effect] : 0;
+    slider.value = value;
+    document.getElementById(`fx-${effect}-val`).textContent = `${value}%`;
+  });
+
+  // Sync loaded Repeat Loop button highlight state
+  const loopBtn = document.getElementById('btn-loop-toggle');
+  if (loopBtn) {
+    loopBtn.classList.toggle('active', audio.isLoopActive);
+  }
 }
 
 function updateBindingCaps() {
@@ -2167,4 +2345,309 @@ function setupSettingsListeners() {
     updateBindingCaps();
     saveSettingsToStorage();
   });
+}
+
+// ============================================================
+// KONAMI CODE + RHYTHM GAME
+// ============================================================
+
+const KONAMI_SEQ = [
+  'ArrowUp','ArrowUp','ArrowDown','ArrowDown',
+  'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight',
+  'b','a','Enter'
+];
+let konamiIdx = 0;
+
+// Rhythm game state
+const rg = {
+  active:       false,
+  bpm:          0,
+  beatInterval: 0,       // seconds per beat
+  circles:      [],      // active circle objects
+  lastBeat:     -1,
+  score:        0,
+  combo:        0,
+  maxCombo:     0,
+  counts:       { p300: 0, p100: 0, p50: 0, miss: 0 },
+  wasPlaying:   false,
+  rafId:        null,
+  areaEl:       null,
+  _prevEndedCb: null,
+  // 4-beat clockwise position pattern (normalised 0-1 within game area)
+  POS: [
+    [0.25, 0.30],  // beat 1 — top-left
+    [0.75, 0.30],  // beat 2 — top-right
+    [0.75, 0.70],  // beat 3 — bottom-right
+    [0.25, 0.70],  // beat 4 — bottom-left
+  ],
+};
+
+function setupKonamiDetection() {
+  window.addEventListener('keydown', (e) => {
+    const expected = KONAMI_SEQ[konamiIdx];
+    const got = e.key;
+    if (got === expected || got.toLowerCase() === expected.toLowerCase()) {
+      konamiIdx++;
+      if (konamiIdx === KONAMI_SEQ.length) {
+        konamiIdx = 0;
+        rgToggle();
+      }
+    } else {
+      konamiIdx = (got === KONAMI_SEQ[0] || got.toLowerCase() === KONAMI_SEQ[0].toLowerCase()) ? 1 : 0;
+    }
+  });
+}
+
+function rgToggle() {
+  if (rg.active) {
+    rgStop();
+  } else {
+    rgStart();
+  }
+}
+
+function rgStart() {
+  rg.active     = true;
+  rg.circles    = [];
+  rg.lastBeat   = -1;
+  rg.score      = 0;
+  rg.combo      = 0;
+  rg.maxCombo   = 0;
+  rg.wasPlaying = false;
+  rg.counts     = { p300: 0, p100: 0, p50: 0, miss: 0 };
+
+  const meta = getActiveTrackMetadata();
+  rg.bpm = (meta && Number(meta.bpm) > 0) ? Number(meta.bpm) : 0;
+  rg.beatInterval = rg.bpm > 0 ? 60 / rg.bpm : 0;
+
+  document.getElementById('turntable-chassis').classList.add('rg-active');
+  document.getElementById('rg-results').classList.add('hidden');
+
+  rg.areaEl = document.getElementById('rg-area');
+  rg.areaEl.querySelectorAll('.rg-circle').forEach(c => c.remove());
+
+  const waiting = document.getElementById('rg-waiting');
+  if (waiting) { waiting.classList.remove('hidden'); waiting.style.opacity = '1'; waiting.style.transition = ''; }
+
+  rgUpdateWaiting();
+  rgUpdateHUD();
+
+  // Chain track-end callback to show results
+  rg._prevEndedCb = audio.onEndedCallback;
+  audio.registerEndedCallback(() => {
+    if (rg._prevEndedCb) rg._prevEndedCb();
+    if (rg.active) setTimeout(rgShowResults, 800);
+  });
+
+  rg.rafId = requestAnimationFrame(rgLoop);
+}
+
+function rgStop() {
+  rg.active = false;
+  if (rg.rafId) { cancelAnimationFrame(rg.rafId); rg.rafId = null; }
+  if (rg.areaEl) rg.areaEl.querySelectorAll('.rg-circle').forEach(c => c.remove());
+  rg.circles = [];
+  audio.registerEndedCallback(rg._prevEndedCb || null);
+  document.getElementById('turntable-chassis').classList.remove('rg-active');
+}
+
+function rgLoop() {
+  if (!rg.active) return;
+
+  const playing = audio.isPlaying;
+
+  if (playing && rg.bpm > 0 && rg.beatInterval > 0) {
+    const t = audio.currentTime;
+    const beatNum = Math.floor(t / rg.beatInterval);
+
+    if (beatNum > rg.lastBeat) {
+      rg.lastBeat = beatNum;
+      const nextBeat = beatNum + 1;
+      const hitTime  = nextBeat * rg.beatInterval;
+      rgSpawn(hitTime, rg.beatInterval, nextBeat);
+    }
+
+    // Hide waiting message when game starts
+    const waiting = document.getElementById('rg-waiting');
+    if (waiting && !waiting.classList.contains('hidden')) {
+      waiting.style.opacity = '0';
+      waiting.style.transition = 'opacity 0.4s';
+      setTimeout(() => waiting.classList.add('hidden'), 400);
+    }
+
+    // Expire missed circles (only while playing so pausing freezes them)
+    const now = audio.currentTime;
+    rg.circles = rg.circles.filter(c => {
+      if (c.resolved) return false;
+      if ((now - c.hitTime) > 0.30) {
+        rgHandleMiss(c);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  // While paused: refresh BPM in case a different track was just loaded
+  if (!playing) {
+    const meta = getActiveTrackMetadata();
+    const newBpm = (meta && Number(meta.bpm) > 0) ? Number(meta.bpm) : 0;
+    if (newBpm !== rg.bpm) {
+      rg.bpm = newBpm;
+      rg.beatInterval = newBpm > 0 ? 60 / newBpm : 0;
+      rg.lastBeat = -1;
+      rgUpdateWaiting();
+    }
+  }
+
+  rg.wasPlaying = playing;
+  rg.rafId = requestAnimationFrame(rgLoop);
+}
+
+function rgSpawn(hitTime, approachSec, beatNum) {
+  const area = rg.areaEl;
+  const areaW = area.clientWidth  || area.offsetWidth  || 400;
+  const areaH = area.clientHeight || area.offsetHeight || 300;
+
+  const base   = rg.POS[beatNum % 4];
+  const jitter = 0.06;
+  const px = Math.max(0.14, Math.min(0.86, base[0] + (Math.random() - 0.5) * jitter));
+  const py = Math.max(0.14, Math.min(0.86, base[1] + (Math.random() - 0.5) * jitter));
+
+  const x = px * areaW;
+  const y = py * areaH;
+  const approachMs = Math.round(approachSec * 1000);
+
+  const el = document.createElement('div');
+  el.className = 'rg-circle';
+  el.style.left = `${x}px`;
+  el.style.top  = `${y}px`;
+  el.innerHTML = `
+    <div class="rg-approach-ring" style="animation-duration:${approachMs}ms"></div>
+    <div class="rg-circle-body">
+      <span class="rg-circle-num">${(beatNum % 4) + 1}</span>
+    </div>`;
+
+  area.appendChild(el);
+
+  const circleData = { el, hitTime, resolved: false };
+  rg.circles.push(circleData);
+
+  el.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    if (!circleData.resolved && rg.active) rgHandleClick(circleData);
+  });
+}
+
+function rgHandleClick(c) {
+  if (c.resolved) return;
+  c.resolved = true;
+
+  const deltaMs = (audio.currentTime - c.hitTime) * 1000;
+  const abs = Math.abs(deltaMs);
+
+  let grade, pts;
+  if (abs <= 60)       { grade = 300; pts = 300; rg.counts.p300++; }
+  else if (abs <= 120) { grade = 100; pts = 100; rg.counts.p100++; }
+  else if (abs <= 260) { grade = 50;  pts = 50;  rg.counts.p50++;  }
+  else                 { grade = 'X'; pts = 0;   rg.counts.miss++;  }
+
+  if (grade !== 'X') {
+    rg.combo++;
+    if (rg.combo > rg.maxCombo) rg.maxCombo = rg.combo;
+    rg.score += pts;
+  } else {
+    rg.combo = 0;
+  }
+
+  c.el.classList.add('rg-hit');
+  setTimeout(() => c.el.remove(), 350);
+  rgShowPopup(c.el, grade);
+  rg.circles = rg.circles.filter(x => x !== c);
+  rgUpdateHUD();
+}
+
+function rgHandleMiss(c) {
+  if (c.resolved) return;
+  c.resolved = true;
+  rg.counts.miss++;
+  rg.combo = 0;
+  c.el.classList.add('rg-miss');
+  setTimeout(() => c.el.remove(), 480);
+  rgShowPopup(c.el, 'X');
+  rgUpdateHUD();
+}
+
+function rgShowPopup(circleEl, grade) {
+  const popup = document.createElement('div');
+  const cls   = grade === 300 ? 'rg-p300' : grade === 100 ? 'rg-p100' : grade === 50 ? 'rg-p50' : 'rg-px';
+  popup.className = `rg-popup ${cls}`;
+  popup.textContent = grade === 'X' ? 'MISS' : grade;
+  popup.style.left = circleEl.style.left;
+  popup.style.top  = circleEl.style.top;
+  rg.areaEl.appendChild(popup);
+  setTimeout(() => popup.remove(), 800);
+}
+
+function rgUpdateHUD() {
+  const scoreEl = document.getElementById('rg-score');
+  const comboEl = document.getElementById('rg-combo-val');
+  if (scoreEl) scoreEl.textContent = rg.score.toLocaleString();
+  if (comboEl) comboEl.innerHTML   = `${rg.combo}<span class="rg-combo-x">×</span>`;
+  const el300  = document.getElementById('rg-cnt-300');
+  const el100  = document.getElementById('rg-cnt-100');
+  const el50   = document.getElementById('rg-cnt-50');
+  const elMiss = document.getElementById('rg-cnt-miss');
+  if (el300)  el300.textContent  = rg.counts.p300;
+  if (el100)  el100.textContent  = rg.counts.p100;
+  if (el50)   el50.textContent   = rg.counts.p50;
+  if (elMiss) elMiss.textContent = rg.counts.miss;
+}
+
+function rgUpdateWaiting() {
+  const sub = document.getElementById('rg-waiting-sub');
+  if (!sub) return;
+  if (!audio.originalBuffer)   sub.textContent = 'Load a track to begin';
+  else if (rg.bpm === 0)       sub.textContent = 'No BPM detected for this track';
+  else                         sub.textContent = `${Math.round(rg.bpm)} BPM — Press Play to start`;
+}
+
+function rgShowResults() {
+  if (!rg.active) return;
+  const total = rg.counts.p300 + rg.counts.p100 + rg.counts.p50 + rg.counts.miss;
+  let accuracy = 0;
+  if (total > 0) {
+    accuracy = (rg.counts.p300 * 300 + rg.counts.p100 * 100 + rg.counts.p50 * 50) / (total * 300) * 100;
+  }
+
+  let rank = 'D';
+  if (accuracy >= 100)     rank = 'SS';
+  else if (accuracy >= 95) rank = 'S';
+  else if (accuracy >= 90) rank = 'A';
+  else if (accuracy >= 80) rank = 'B';
+  else if (accuracy >= 70) rank = 'C';
+
+  document.getElementById('rr-300').textContent  = rg.counts.p300;
+  document.getElementById('rr-100').textContent  = rg.counts.p100;
+  document.getElementById('rr-50').textContent   = rg.counts.p50;
+  document.getElementById('rr-miss').textContent = rg.counts.miss;
+
+  const rankEl = document.getElementById('rg-rank');
+  rankEl.textContent = rank;
+  rankEl.className   = `rg-rank rg-rank-${rank.toLowerCase()}`;
+
+  document.getElementById('rg-accuracy').textContent =
+    total > 0 ? `${accuracy.toFixed(2)}%` : '—';
+  document.getElementById('rg-max-combo').textContent =
+    `MAX COMBO ${rg.maxCombo}×  ·  FINAL SCORE ${rg.score.toLocaleString()}`;
+
+  // Clear remaining circles
+  if (rg.areaEl) rg.areaEl.querySelectorAll('.rg-circle').forEach(c => c.remove());
+  rg.circles = [];
+
+  document.getElementById('rg-results').classList.remove('hidden');
+}
+
+function setupRhythmGame() {
+  setupKonamiDetection();
+  document.getElementById('btn-rg-exit').addEventListener('click', () => rgStop());
 }

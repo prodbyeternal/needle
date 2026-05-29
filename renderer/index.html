@@ -261,6 +261,19 @@
                 <span>EJECT</span>
               </button>
             </div>
+            
+            <div class="transport-sub-grid">
+              <button id="btn-loop-toggle" class="btn-transport btn-sub-transport" title="Repeat Entire Track">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 2.141A10 10 0 0 1 22 12v0a10 10 0 0 1-5 8.66m-10 1.2a10 10 0 0 1-5-8.66v0a10 10 0 0 1 5-8.66M2 12h20"/>
+                </svg>
+                <span>REPEAT LOOP</span>
+              </button>
+              <button id="btn-ab-repeat" class="btn-transport btn-sub-transport" title="Repeat A-B Section">
+                <span class="ab-indicator font-mono">A ⇄ B</span>
+                <span id="ab-status-text">OFF</span>
+              </button>
+            </div>
           </div>
 
           <div class="fx-panel" id="deck-panel-fx">
@@ -308,6 +321,73 @@
           </div>
         </div>
       </section>
+
+      <!-- ♪ KONAMI RHYTHM GAME PANEL ♪ -->
+      <div id="rg-panel" class="rg-panel" role="region" aria-label="Rhythm Game">
+        <!-- HUD strip -->
+        <div class="rg-hud">
+          <div class="rg-hud-block">
+            <div class="rg-hud-label font-mono">SCORE</div>
+            <div id="rg-score" class="rg-hud-value font-mono">0</div>
+          </div>
+          <div class="rg-hud-block rg-hud-center">
+            <div id="rg-combo-val" class="rg-combo font-mono">0<span class="rg-combo-x">×</span></div>
+            <div class="rg-hud-label font-mono">COMBO</div>
+          </div>
+          <div class="rg-hud-block rg-hud-right">
+            <div class="rg-grades font-mono">
+              <span class="rg-g300" id="rg-cnt-300">0</span>
+              <span class="rg-g100" id="rg-cnt-100">0</span>
+              <span class="rg-g50"  id="rg-cnt-50">0</span>
+              <span class="rg-gx"   id="rg-cnt-miss">0</span>
+            </div>
+            <div class="rg-grade-labs font-mono">
+              <span>300</span><span>100</span><span>50</span><span>MISS</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Play field -->
+        <div id="rg-area" class="rg-area">
+          <div id="rg-waiting" class="rg-waiting">
+            <div class="rg-waiting-icon">♪</div>
+            <div class="rg-waiting-title font-mono">RHYTHM MODE</div>
+            <div class="rg-waiting-sub font-mono" id="rg-waiting-sub">Play a track with detected BPM to start</div>
+          </div>
+        </div>
+
+        <!-- Results overlay -->
+        <div id="rg-results" class="rg-results hidden">
+          <div class="rg-results-inner">
+            <div class="rg-results-kicker font-mono">SESSION RESULTS</div>
+            <div id="rg-rank" class="rg-rank">—</div>
+            <div id="rg-accuracy" class="rg-accuracy font-mono">—</div>
+            <div class="rg-results-grid">
+              <div class="rg-result-item">
+                <span class="rg-g300 rg-result-count" id="rr-300">0</span>
+                <span class="rg-result-lbl font-mono">PERFECT</span>
+              </div>
+              <div class="rg-result-item">
+                <span class="rg-g100 rg-result-count" id="rr-100">0</span>
+                <span class="rg-result-lbl font-mono">GOOD</span>
+              </div>
+              <div class="rg-result-item">
+                <span class="rg-g50 rg-result-count" id="rr-50">0</span>
+                <span class="rg-result-lbl font-mono">OK</span>
+              </div>
+              <div class="rg-result-item">
+                <span class="rg-gx rg-result-count" id="rr-miss">0</span>
+                <span class="rg-result-lbl font-mono">MISS</span>
+              </div>
+            </div>
+            <div id="rg-max-combo" class="rg-max-combo font-mono"></div>
+            <button id="btn-rg-exit" class="btn-rg-exit font-mono">EXIT RHYTHM MODE</button>
+          </div>
+        </div>
+
+        <!-- Konami hint footer -->
+        <div class="rg-footer font-mono">↑↑↓↓←→←→ B A ENTER — KONAMI MODE</div>
+      </div>
     </main>
     <div id="drag-status-indicator" class="sr-status font-mono" aria-live="polite"></div>
   </div>

@@ -37,6 +37,15 @@ export class PlatterRenderer {
     
     // Ambient Pulse State
     this.glowIntensity = 0;
+
+    // Repeat points for scrolling waveform
+    this.repeatA = null;
+    this.repeatB = null;
+  }
+
+  setRepeatPoints(pctA, pctB) {
+    this.repeatA = pctA;
+    this.repeatB = pctB;
   }
 
   setTheme(theme) {
@@ -541,6 +550,21 @@ export class PlatterRenderer {
     // Zoom factor: 1 index point covers 2.2 horizontal pixels
     const stepX = 2.2;
 
+    // Draw repeat loop background highlight overlay
+    if (this.repeatA !== null && this.repeatB !== null) {
+      const idxA = this.repeatA * this.scrollingWaveform.length;
+      const idxB = this.repeatB * this.scrollingWaveform.length;
+      const xA = playheadX + (idxA - activeIdx) * stepX;
+      const xB = playheadX + (idxB - activeIdx) * stepX;
+      
+      const drawXStart = Math.max(0, xA);
+      const drawXEnd = Math.min(w, xB);
+      if (drawXEnd > drawXStart) {
+        ctx.fillStyle = this.accentRgba(0.12);
+        ctx.fillRect(drawXStart, 0, drawXEnd - drawXStart, h);
+      }
+    }
+
     ctx.fillStyle = this.activeTheme === 'dark' ? this.activeAccentColor : '#121212';
 
     // Draw double-sided symmetric waveform columns
@@ -554,6 +578,52 @@ export class PlatterRenderer {
         const barHeight = Math.max(1, amplitude * (h - 8));
 
         ctx.fillRect(x, midY - barHeight / 2, 1.5, barHeight);
+      }
+    }
+
+    // Draw vertical markers and tab labels for A and B points
+    if (this.repeatA !== null) {
+      const idxA = this.repeatA * this.scrollingWaveform.length;
+      const xA = playheadX + (idxA - activeIdx) * stepX;
+      if (xA >= 0 && xA <= w) {
+        ctx.strokeStyle = this.activeAccentColor;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(xA, 0);
+        ctx.lineTo(xA, h);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Tab label "A"
+        ctx.fillStyle = this.activeAccentColor;
+        ctx.fillRect(xA - 6, 2, 12, 11);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 8px var(--font-sans)';
+        ctx.textAlign = 'center';
+        ctx.fillText('A', xA, 10);
+      }
+    }
+    if (this.repeatB !== null) {
+      const idxB = this.repeatB * this.scrollingWaveform.length;
+      const xB = playheadX + (idxB - activeIdx) * stepX;
+      if (xB >= 0 && xB <= w) {
+        ctx.strokeStyle = this.activeAccentColor;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(xB, 0);
+        ctx.lineTo(xB, h);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Tab label "B"
+        ctx.fillStyle = this.activeAccentColor;
+        ctx.fillRect(xB - 6, 2, 12, 11);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 8px var(--font-sans)';
+        ctx.textAlign = 'center';
+        ctx.fillText('B', xB, 10);
       }
     }
   }
