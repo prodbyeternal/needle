@@ -95,23 +95,5 @@ Keyboard bindings can be changed from Settings.
 - Canvas rendering
 - IndexedDB and localStorage for local app state
 
-## Running the App
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Start NEEDLE:
-
-```bash
-npm start
-```
-
-Development mode:
-
-```bash
-npm run dev
 ```
 
